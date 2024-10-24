@@ -1,0 +1,169 @@
+<script type="module" defer src="/__/firebase/10.14.1/firebase-app-compat.js" >
+	import {  initializeApp } from "/__/firebase/10.14.1/firebase-app-compat.js";
+		// Your web app's Firebase configuration
+		const firebaseConfig = {
+		  apiKey: "AIzaSyCfRdhbs1nQNkSauH0VXGzUjG-oduo6D58",
+		  authDomain: "websec-eae8b.firebaseapp.com",
+		  databaseURL: "https://websec-eae8b-default-rtdb.firebaseio.com",
+		  projectId: "websec-eae8b",
+		  storageBucket: "websec-eae8b.appspot.com",
+		  messagingSenderId: "1016219073765",
+		  appId: "1:1016219073765:web:ae02272978f5b58095e80c"
+		};
+
+		// Initialize Firebase
+		const app = initializeApp(firebaseConfig);
+</script>
+
+<html>
+	<head>
+		<meta name="viewport" content="width=device-width, initial-scale=1">
+		<script defer src="/__/firebase/10.14.1/firebase-auth-compat.js"></script>
+		<script defer src="/__/firebase/10.14.1/firebase-database-compat.js"></script>
+		<script defer src="/__/firebase/init.js?useEmulator=true"></script>
+	</head>
+
+	<h1>Task List</h1>
+	<span>
+		<p style="display: inline-block">Add Button: </p>
+		<input type="text" id="addbtn">
+	</span>
+	<table id="information">
+		<thead>
+			<tr>
+				<th>Task</th>
+				<th>Completion</th>
+				<th>Delete</th>
+			</tr>
+		</thead>
+		<tbody>
+		</tbody>
+	</table>
+	<span>
+		<p style="display: inline-block">WARNING: Will delete all data!! Just close tab to exit.</p>
+		<input type="button" id="destroyBtn" value="Sign out">
+	<span>	
+</html>
+
+<script>
+	document.addEventListener('DOMContentLoaded', function() {
+		const db = firebase.database();
+		const dbRef = db.ref();
+		// Check Authentication, Update page on Logout, Check if new user
+		var userId = 'test';
+		firebase.auth().onAuthStateChanged(user => {
+			if (user) {
+				renderTasks();
+			} else {
+				// If not logged in, send to login page. Note: Change url on deployment.
+				window.location.replace("https://websec-eae8b.web.app");
+			}
+		 });	
+	});
+	document.querySelector('#destroyBtn').addEventListener("click", function() {
+		firebase.auth().signOut().then(() => console.log("out?"));		
+	});
+	
+	// Add Task Button
+	document.querySelector("#addbtn").addEventListener("change", function(evt) {
+		// Setup references
+		const dbRef = firebase.database().ref();
+		const user = firebase.auth().currentUser.uid;
+		const taskName = evt.target.value;
+		
+		var data = {completed: false, name: taskName}
+		
+		// Add Task	
+		firebase.auth().currentUser.getIdToken(true).then((idToken) => {
+			fetch('https://websec-eae8b-default-rtdb.firebaseio.com/' + user + '.json' + '?auth=' + idToken, {credentials: "same-origin", method: "post", body: JSON.stringify(data)})
+			.then((resp) => {
+				console.log("Success!");
+				// Rerender tasks
+				renderTasks();
+			})
+			.catch((err) => {
+				console.log(err);
+			});
+		});
+
+		// Reset val 
+		evt.target.value = '';
+	});
+
+	// Edit Tasks
+	document.querySelector("#information").addEventListener("change", function(evt) {	
+		const user = firebase.auth().currentUser.uid;
+		if (evt.target.type == "checkbox") {
+			firebase.auth().currentUser.getIdToken(true).then((idToken) => {
+				fetch('https://websec-eae8b-default-rtdb.firebaseio.com/' + user + '/' + evt.target.id + '/completed.json' + '?auth=' + idToken, {method: "put", body: evt.target.checked})
+				.then((resp) => {
+					console.log('Successful!');
+				})
+				.catch((err) => {
+					console.log(err);
+				});
+			});
+		}
+	
+		if (evt.target.type == "text") {
+			data = String('"' + String(evt.target.value) + '"');
+			firebase.auth().currentUser.getIdToken(true).then((idToken) => {
+				fetch('https://websec-eae8b-default-rtdb.firebaseio.com/' + user + '/' + evt.target.id + '/name.json' + '?auth=' + idToken, {method: "put", body: data})
+				.then((resp) => {
+					console.log('Successful!');
+				})
+				.catch((err) => {
+					console.log(err);
+				});
+			});
+		}	
+	}); 
+	
+	function deleteTask(id) {
+		const user = firebase.auth().currentUser.uid;
+		firebase.auth().currentUser.getIdToken(true).then((idToken) => {
+			fetch('https://websec-eae8b-default-rtdb.firebaseio.com/' + user + '/' + id + '.json' + '?auth=' + idToken, {credentials: "same-origin", method: "delete"})
+			.then((resp) => {
+				console.log('Successful!');
+				renderTasks();
+			})
+			.catch((err) => {
+				console.log(err);
+			});
+		});
+	}
+
+	function renderTasks() {
+		const table = document.querySelector("#information");
+		const tableBody = table.getElementsByTagName('tbody')[0];
+		const user = firebase.auth().currentUser.uid;
+		
+		firebase.auth().currentUser.getIdToken(true).then((idToken) => {
+			fetch('https://websec-eae8b-default-rtdb.firebaseio.com/' + user + '.json' + '?auth=' + idToken, {credentials: "same-origin", method: "get"})
+			.then(resp => resp.json())
+			.then((resp) => {
+				tableBody.innerHTML = '';
+				Object.entries(resp).forEach((item) => {
+					//console.log(item[1].name);
+					// Object is formatted with id at [0], actual object at [1]
+					const row = tableBody.insertRow();
+					var cell = row.insertCell();
+					var txt = item[1].name;
+					cell.innerHTML = `<input type="text" value="${txt}" id=${item[0]}>`;
+					cell = row.insertCell();
+					var isComplete = '';
+					if (item[1].completed) { isComplete += 'checked'}
+					cell.innerHTML = `<input type="checkbox" id=${item[0]} ` + isComplete + '>';
+					cell = row.insertCell();
+					cell.innerHTML = `<input type="button" id=${item[0]} onclick="deleteTask(this.id)" value="Delete">`
+				});
+			})
+			.catch((err) => {
+				console.log(err);
+			});
+		});
+
+		
+	}	
+</script>
+
